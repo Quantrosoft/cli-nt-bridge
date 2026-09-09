@@ -69,7 +69,7 @@ Set up a Strategy Analyzer tab once (strategy, instrument, dates, commission); `
 
 ## Commands
 
-33 commands, grouped by what they do:
+35 commands, grouped by what they do:
 
 **Setup & diagnostics**
 ```
@@ -87,10 +87,10 @@ peek          read the SA tab's latest result + param read-back, without a new R
 
 **Read-only state** — what is this NinjaTrader actually doing right now?
 ```
-ntstatus      is NT running the code on disk? (catches a stale DLL; exit 2 if so)
+ntstatus      is NT running the sources on disk? (newest .cs vs the code NT executes; exit 2 if not)
 workspace     charts + indicators + strategies on them, and their State
 strategies    Control Center strategies: enabled AND running? --enable/--disable to change
-playback      replay transport: clock, MOVING?, speed, .nrd coverage
+playback      replay transport: clock, MOVING?, speed; .nrd coverage only on request (--coverage = every instrument, minutes; --instrument X = that one); --require-ready = exit 2 unless parked and loaded
 screenshot    capture a window (or the screen) as PNG
 ```
 
@@ -100,6 +100,11 @@ backtest      run a configured Strategy Analyzer backtest (--pdf for a report)
 batch         run N param-sets -> one combined report (--pdf)
 sweep         backtest a matrix: instrument x bar-type x param-set
 configure      write instrument/dates/bar-type/fill/params onto the SA tab (headless setup)
+satemplate    put one of NinjaTrader's own strategy templates on the SA tab, by file
+optimize      NinjaTrader's parameter search on the SA tab: --template + --opt=Name:min:max:step
+walkforward   walk-forward optimization on the SA tab, same options plus --anchored
+multiobjective  multi-objective optimization on the SA tab, same options
+playbackrun   drive a Playback run end to end: connect, range, attach, play, archive
 ```
 
 **Data export**
@@ -292,6 +297,192 @@ unattended caller, and failing its no-op would make every retry look like a fail
 `alreadyEnabled` on a row whose `state` is *not* live: an enabled checkbox above a `Terminated` strategy
 is the looks-healthy-but-isn't case, and the checkbox is the less trustworthy of the two readings.
 
+### satemplate — a backtest by template file
+
+```bash
+python -m nt8bridge satemplate --template "C:\...\bin\Custom\Strategies\MyBot\Tests\VariantA.xml"
+python -m nt8bridge backtest                 # --config is now optional
+```
+
+`--template` is a full path to one of NinjaTrader's own strategy template `.xml` files, or a
+bare name looked up in the strategy's template folder. The template is **assigned** to the
+Strategy Analyzer tab (the complete parameter set plus instrument and window, exactly what the
+GUI would run); when it belongs to a different strategy than the tab shows, that strategy is
+selected first, and the instrument travels to the tab because NinjaTrader does not carry it over
+on its own. The response's `applied` is a reference comparison of the assigned template, and the
+run window is reported.
+
+### optimize / walkforward / multiobjective — NinjaTrader's own parameter search
+
+```bash
+python -m nt8bridge walkforward --template="C:\...\Tests\WFO_VariantA.xml" --opt=DeltaVolume1:150:250:50                                 --OptimizationPeriod=10 --TestPeriod=5 --out=C:
+uns\wfo.csv
+python -m nt8bridge optimize   --template=VariantA --opt="Fast:20:30:5,Slow:50:100:10" --fitness=MaxProfitFactor
+python -m nt8bridge walkforward --template=VariantA --opt=Fast:20:30:5 --anchored --optimizer=genetic
+```
+
+The three commands drive the Strategy Analyzer's Optimize, Walk Forward and Multi-objective
+runs the way the Run button does, and take the **same options as the headless runner
+Nt8Cli's `optimize` / `walkforward` / `multiobjective`**, so a run moves between the two hosts
+by changing nothing but the program name:
+
+* `--template` names the strategy template file (full path, or a bare name in the strategy's
+  template folder, as `satemplate`); it carries the complete parameter set, instrument and window.
+* `--opt="Name:min:max:step[,...]"` names the parameters to search. The AddOn writes them onto
+  the template's `OptimizationParameters` as NinjaTrader's own `Parameter` objects — the
+  collection the GUI's parameter grid fills. NinjaTrader refuses a run without one: with the
+  run type set and the collection empty, Run shows `The strategy must have at least one
+  parameter to optimize.` and runs nothing (measured on 8.1.8.2).
+* `--optimizer=default|genetic` (exactly these two; anything else is refused rather than run
+  as the default), `--fitness=<OptimizationFitness class name>` (default: the template's).
+* Any further `--Name=value` is written to the strategy property of that name after the
+  template — `--OptimizationPeriod=<days>` and `--TestPeriod=<days>` are the walk-forward
+  window lengths. A token of another shape is refused (exit 2), never silently dropped.
+* `--anchored` (walkforward only) selects the anchored walk-forward.
+* `--out=<csv>` copies the CSV files the strategy wrote during the run — read from the
+  strategy's `LogModes` folder when it has that property, else `<MyDocuments>\cAlgo\Logfiles`
+  — as `<out>` for one file and `<out>_<k><ext>` in creation order for several (Nt8Cli's rule).
+  When the strategy has a `LogFilePrefix` property the AddOn sets it to `ntbridge-<Strategy>`
+  for the run and counts only files with that prefix, so a headless fleet writing into the
+  same folder meanwhile cannot land in this run's output (Nt8Cli sets its own prefix the same way).
+  Measured 2026-09-09 with eight headless runners writing into the folder during the run: 14
+  files listed, all `ntbridge-RoadToSuccess*.csv`, none of the runners' `ntcliinst<N>-*` files
+  (the first build of this feature had listed four of them).
+* `--timeout` (default 1800 s) bounds the wait on both sides: the AddOn stops polling the grid
+  when the client stops polling the file.
+
+The AddOn sets the tab's `BacktestType` and the strategy's `Category` to the run mode, executes
+the view model's `RunCommand`, and reads the result off the tab's results grid once its progress
+control has gone (`IsProgressVisible` was true from the first poll tick to the last but one of a
+594 s walk-forward, measured 2026-09-08) and every new row carries a `SystemPerformance`. The
+response lists one `rows` entry per grid entry that did not exist before the run (compared by
+reference — the grid REPLACES a re-run's entry, so a count says nothing; two entry objects with
+one Guid become one row). What NinjaTrader 8.1.8.2 puts into the grid for a walk-forward: one
+summary row (`isSummary`, `children` = the windows), per window a row of `category` WalkForward
+carrying the OUT-OF-SAMPLE run, and per combination a row of `category` Optimize (`parentGuid` =
+the window's `guid`) carrying the IN-SAMPLE run, ranked by `results.performanceValue`. Each row
+carries window, the values of the optimized parameters, the ranges, `results` (trades, net
+profit, profit factor, drawdown, performance value) and the entry's own `optimizationResults`
+(empty on every entry of the measured walk-forward). `windows` counts the WalkForward rows,
+`rankedWindows` those with an Optimize child whose performance value is real; `csvFiles` are
+the files copied by `--out`. Exit 0 on `status: ok`, 1 on an error from the AddOn, 2 on a
+refused option.
+
+Parity with the headless runner, measured 2026-09-08 on NinjaTrader 8.1.8.2 (RoadToSuccess,
+NQ 09-26, 16.06.–13.07.2026, `--opt=DeltaVolume1:150:250:50`, in-sample 10 / out-of-sample 5
+days; bridge run 594 s, Nt8Cli `walkforward` on the same template and Custom.dll sources):
+4 windows, out-of-sample parameter 250 / 250 / 250 / 150 with 7 / 3 / 14 / 3 trades on both
+hosts; in-sample ranking per window identical (250 > 200 > 150 three times, 150 > 200 > 250 in
+the last window); every CSV written on both sides byte-identical (11 of 11, all 4 out-of-sample
+files among them). The SET of in-sample iteration CSVs differs: the GUI run wrote 12 of the 16
+instances' files, the headless run 15, each missing different iterations — a strategy instance
+that never reaches its termination step leaves no file, on either host.
+
+### playback — the replay transport's state
+
+```bash
+python -m nt8bridge playback                            # clock, MOVING?, speed - no store scan
+python -m nt8bridge playback --instrument "MNQ 09-26"   # plus .nrd coverage of that instrument
+python -m nt8bridge playback --coverage --timeout 600   # plus coverage of every instrument (minutes)
+python -m nt8bridge playback --require-ready            # exit 2 unless connected, loaded and parked
+```
+
+The `.nrd` coverage scan is opt-in because the wide scan holds the AddOn's poller for minutes;
+the response says `coverageScanned: true|false`, and an unscanned store is reported as
+`coverage not scanned`, never as "nothing to replay". `--require-ready` asserts "connected, loaded
+and parked" for bake scripts and therefore implies the scan (of `--instrument` when given).
+
+### playbackrun — one Playback measurement, end to end
+
+Drives NinjaTrader's **Playback** connection through a whole run and archives the result:
+every connection off, clean start, connect, source, dates, range, speed, attach the strategy,
+play to the data end, restore the baseline. Every value it writes is read back.
+
+```bash
+python -m nt8bridge playbackrun --strategy EmptyStrategy --instrument 'NQ ##-##' \
+    --source marketreplay --tick-replay false --bars-type Minute --bars-value 1 \
+    --from 2026-08-10 --to 2026-08-10
+```
+
+`--source` is `marketreplay` (recorded .nrd data) or `historical` (the historical store);
+`--tick-replay` turns Tick Replay on or off; `--bars-type` is `Tick`, `Minute` or `Wave` and
+`--bars-value` is its period. Exit **0** only when the run reached the data end **and** the
+teardown restored the baseline; **2** when it did not (the JSON says which), **1** on an error.
+
+`--from` and `--to` are calendar days written `YYYY-MM-DD`, the end inclusive and not before
+the start. Anything else — `2026-13-07`, `2026-7-7`, `07/07/2026`, an end before its start —
+is refused by the argument parser (usage line on stderr, exit 2, the accepted form and the
+offending value in the message) before a single request is written. Measured 2026-09-01: seven
+runs carried `--to 2026-13-07` all the way into NinjaTrader, and each lasted 45–58 s of wall
+clock before it died with `FormatException: String was not recognized as a valid DateTime.`
+
+Before anything else the run asks the bridge one cheap question (stage 0, the preflight). A
+NinjaTrader that is busy answers nothing for minutes - a Playback connect measured 388-453 s, a
+cold start 735 s - so silence is waited out, up to 1800 s, with a console line at most every
+30 s and the wait recorded as `preflightSeconds` in the result. One silence is refused at once:
+no `NinjaTrader.exe` process at all.
+
+**Accounts — which one the strategy trades on.** A Playback connection carries one or more
+simulation accounts; their names come from NinjaTrader, and an unknown one is refused with the
+list of what exists. A run uses one of them:
+
+```bash
+# on the account NinjaTrader itself calls the playback account
+python -m nt8bridge playbackrun --strategy MyBot ...
+
+# on a named account
+python -m nt8bridge playbackrun --strategy MyBot --account Playback2 ...
+```
+
+- **`--account <name>`** — the account the strategy trades on. Omit it and the run asks
+  NinjaTrader for its own playback account name (`Account.PlaybackAccountName`) rather than
+  assuming one. A name that does not exist **stops the run** and lists what does exist; it is
+  never silently swapped for another, because a strategy trading on an account nobody watches
+  produces a run that looks successful.
+- **`--template <file>`** — attach the strategy from one of NinjaTrader's own template `.xml`
+  files (the complete parameter set); without it the strategy runs with its defaults.
+- **`--name <archive>`** — name of the run directory under `NT8Bridge
+uns` (default
+  `PB_<strategy>`; a suffix `__N` keeps repeated runs apart).
+- **`--stage-wait <s>`** — seconds one ordinary stage may take; the connect and Reset stages get
+  2.5× that. Defaults to the driver's 10 / 25; raise it on a box where NinjaTrader is slow. Two
+  stages keep their own floors on top: the connect (`CONNECT_WAIT`, min. 600 s) and the preflight
+  (`PREFLIGHT_WAIT`, min. 1800 s, see above).
+- **`--max-wait <rounds>`** — the play loop's budget once the clock has reached the range end,
+  in rounds of 30 s (default 40).
+- **`--nt8-dir <path>`** — the NinjaTrader data directory this run talks to (the mailbox lives
+  under it); give each run its own to keep several NinjaTrader installations apart.
+
+> ⚠ **One bot per pass — and running several is not worth it.** The driver accepted a list of
+> bots until the idea was measured: two bots on one connection took **1163.8 s** for a week of
+> Market Replay against roughly **606 s** for one. They SHARE the replay walk rather than
+> parallelising it. The whole two-variant pass came to 1214.6 s against 1311.7 s run one after
+> the other — 7.4 %, and that saving is the second connect it avoided, not the bots. The clock,
+> the window, `--source` and `--tick-replay` are process-wide in NinjaTrader anyway, so a second
+> bot could only ever vary its own bookkeeping.
+
+`--account` also exists on the driver itself
+(`python nt8bridge/playback_run.py --help`), which additionally offers `--step` for a
+stop-after-every-sub-step walkthrough and `--archive` for where the run is written.
+
+**The census — an optional counter file the strategy may write.**
+
+At the end of a run the driver looks for `botlog_*/DEBUG_callbacks.json` inside the archive
+and, if it finds one, prints what it holds. **Nothing in this repository writes that file** —
+it is a convention a strategy can opt into, not a requirement, and a strategy that writes
+none is a perfectly good run.
+
+It is a **measurement, never a control**: the exit code does not depend on the file existing.
+Two things are read by name when they are present, and both say so when they are not:
+
+| key | used for |
+|---|---|
+| `IsTickReplay`, `Instrument` | compared against what the run asked for — a mismatch is reported and sets exit 2, because a run whose settings differ from the request is not a measurement of that request |
+| `MarketData_LastDataTime` | the timestamp of the last market-data event, to tell "no data at all" from "data stopped early". Absent, the cut-short check prints that it cannot run rather than passing quietly |
+
+Every other key in the file is printed as it comes, so a strategy can add counters without
+this driver having to know their names.
+
 ### chartseries
 
 Change a **live** chart's data series (instrument and/or bar type + period) from the CLI:
@@ -327,6 +518,58 @@ python -m nt8bridge peek                                   # re-read the result 
 ## precheck note
 
 `precheck` is an optional fast offline gate. It needs an external NinjaScript offline-compiler PowerShell script — point at it with the `NT8BRIDGE_COMPILER` environment variable. Without it, `precheck` errors clearly (it will not pretend your code is clean), and its fixture tests skip. The in-NinjaTrader `compile` command does **not** need it and is the primary error-checking path.
+
+## Run modes and the stores they read
+
+The bridge runs a strategy over recorded data in three ways: the Strategy Analyzer (`backtest`)
+and Playback from one of two sources (`playbackrun --source historical|marketreplay`). The two
+Playback sources do **not** read the same store. What backs the table is the AddOn's own code,
+not a log line: the coverage pre-flight in `addon/NT8BridgeServerPlayback.cs` scans exactly the
+store the run will read, and its two scanners name the folders.
+
+| Playback source | Store | The AddOn's scanner |
+|---|---|---|
+| **Historical** | `db\tick` (`.ncd`, one file per hour and data type) | `TickCoverage` lists `db\tick\<instrument>\*.ncd` |
+| **Market Replay** | `db\replay` (`.nrd`, one file per instrument and day) | `ReplayCoverage` lists `db\replay\<instrument>\*.nrd` — the store `histget` fills and `histdump` decodes |
+
+Only Market Replay reads the `.nrd` recordings. The Strategy Analyzer is driven as its tab was
+configured (`backtest`) and has no such pre-flight: the bridge scans no store for it, and this
+section claims none.
+
+`playbackrun --source historical|marketreplay` chooses between the two. What decides the
+source is the adapter static `PlaybackAdapter.IsSourceHistoricalData`: the bridge writes it for the
+connect, re-asserts it after the connect and verifies it at the `source` stage, and every write is
+read back. The two radio buttons on the Playback panel are display only: the `source` stage reads
+them and reports what the panel shows, and a radio write NinjaTrader refuses is reported as a
+display defect, never as a failed run, because the source was already settled by the static.
+
+The coverage pre-flight after the connect asks the store the run will read: a Historical run
+checks `db\tick` for the requested days, a Market Replay run checks `db\replay`. Measured
+2026-08-30: a Historical run whose instrument had NCD files for the day but no `.nrd` at all was
+refused by a scan of `db\replay`, and the fallback then judged the request against the panel
+range of the previous run.
+
+Switching the panel to Historical makes NinjaTrader raise a modal notice that Level II market
+depth is not available in this mode. The bridge ticks "Don't show this message again" and confirms
+that one notice, identified by its wording, and touches no other dialog: any other modal is left
+standing and reported as the finding.
+
+One more kind of box is confirmed during a run: NinjaTrader's order-rejection notices for the
+playback account - `Stop price can't be changed above/below the market`, `... stop orders can't be
+placed above/below the market`, `Order ... can't be submitted: The OCO ID ... cannot be reused` -
+raised when the market crosses a strategy's stop between the strategy's own check and NinjaTrader's
+validation (measured 2026-09-02: seven in one Historical run, every one handled by the strategy
+itself). They are informational but modal, and an unattended run collects one per rejection. The
+`strategystate` stage the play loop runs every sample confirms exactly those boxes - type name
+`MessageBox`, text carrying NinjaTrader's trailer `affected Order:` - and counts them in its `order
+notices` step; the driver prints each confirmation and result.json carries `orderNoticesDismissed`.
+Any other modal still stands and is still the finding.
+
+A playback run that is killed instead of torn down leaves the transport running. The next run then
+refuses with `the transport was already running before step 8 - the strategy has lost the ticks up
+to <time>`. The cure is the stage pair every run starts with: `alloff` (every connection off, from
+the live list) and `restore` (strategy rows removed, dialogs closed, transport parked). NinjaTrader
+stays up.
 
 ## How it actually works (the interesting bits)
 
