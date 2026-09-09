@@ -590,6 +590,7 @@ def _analyzerrun(args, extra: list) -> int:
     cmd = args.command
     try:
         ntanalyzerrun.parse_opt_spec(args.opt)
+        ntanalyzerrun.check_fitness(cmd, args.fitness)
         params = ntanalyzerrun.property_overrides(extra)
         payload = ntanalyzerrun.run_analyzer(
             cmd, args.template, args.opt, optimizer=args.optimizer, fitness=args.fitness,
@@ -1118,7 +1119,8 @@ def main(argv: list[str]) -> int:
                           help='"Name:min:max:step[,...]" - the parameters to search')
         p_ar.add_argument("--optimizer", choices=list(ntanalyzerrun.OPTIMIZERS), default="default")
         p_ar.add_argument("--fitness", default="",
-                          help="OptimizationFitness class name, e.g. MaxProfitFactor (default: the template's)")
+                          help="OptimizationFitness class name(s), e.g. MaxProfitFactor (default: the "
+                               "template's); multiobjective needs at least two, comma-separated")
         p_ar.add_argument("--out", default=None,
                           help="copy the CSV files the strategy wrote: <out> for one, <out>_<k><ext> for several")
         p_ar.add_argument("--timeout", type=float, default=ntanalyzerrun.DEFAULT_TIMEOUT,
