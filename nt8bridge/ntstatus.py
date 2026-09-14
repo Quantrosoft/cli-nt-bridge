@@ -78,7 +78,7 @@ def _parse(ts: str | None) -> datetime | None:
 
 
 def assess(payload: dict) -> NtStatus:
-    """Turn the raw payload into the one judgement callers actually want.
+    r"""Turn the raw payload into the one judgement callers actually want.
 
     STALE means NinjaTrader is not running the NinjaScript sources on disk: a .cs under
     bin\Custom is newer than the assembly the AddOn executes from (`sourcesNewerThanRunningCode`,

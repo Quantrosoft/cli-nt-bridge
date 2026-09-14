@@ -33,9 +33,15 @@ def test_iso_date_returns_a_valid_day_unchanged(value):
     assert pr.iso_date(value) == value
 
 
+# ! ASSERT ON OUR OWN WORDING, NEVER CPython'S. `iso_date` interpolates the stdlib's ValueError
+#   into its message, and that text is not a stable interface: CPython reworded the day-range error
+#   after 3.12, so "day is out of range for month" became "day 30 must be in range 1..28 for month 2
+#   in year 2026" and this case failed on 3.13+ against code that was behaving perfectly. The repo
+#   declares requires-python >=3.10, so the suite has to hold across that whole range.
+#   "is not a calendar date" is ours, and the value and DATE_FORMAT are still asserted below.
 @pytest.mark.parametrize("value, reason", [
-    ("2026-13-07", "month must be in 1..12"),          # the seven archived runs
-    ("2026-02-30", "day is out of range for month"),
+    ("2026-13-07", "not a calendar date"),             # the seven archived runs
+    ("2026-02-30", "not a calendar date"),
     ("2026-7-7", "not a date of the form"),
     ("07/07/2026", "not a date of the form"),
     ("20260607", "not a date of the form"),            # fromisoformat alone takes this on 3.11
