@@ -159,7 +159,7 @@ def test_not_stale_when_the_running_code_is_newer_than_every_source():
 
 
 def test_stale_when_a_source_is_newer_than_the_running_code():
-    """The 33-minute wasted cell: a source deployed after the running code was compiled."""
+    """Stale code: a source deployed after the running code was compiled."""
     st = ntntstatus.assess({
         "status": "ok",
         "processStartUtc": "2026-09-02T14:02:37Z",

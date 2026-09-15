@@ -84,7 +84,7 @@ def assess(payload: dict) -> NtStatus:
     bin\Custom is newer than the assembly the AddOn executes from (`sourcesNewerThanRunningCode`,
     with `runningAssembly.builtUtc` and `newestSource` reported). When the AddOn could not read
     one side, the older time rule applies (the DLL built after the process started) and the
-    verdict says so. That is the 33-minute-wasted-cell condition, and the fix for it is a
+    verdict says so. That is the stale-code condition, and the fix for it is a
     reload or a restart, not another deploy. Measured 2026-09-02/03: NinjaTrader executes a
     reload from a temp assembly compiled once more from the sources, so neither the DLL's build
     time nor its identity tells what runs; the time rule answered "restart it" after every

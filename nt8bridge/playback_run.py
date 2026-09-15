@@ -211,7 +211,7 @@ SLOW_WAIT = 25           # Reset / range / speed - NinjaTrader talks to its prov
 # running mean: 34x38032.3 - 33x26365.3 ms) with zero log lines and zero
 # disk reads while it waited, then came back Connected and served RequestBars
 # normally. The stall is inside NinjaTrader's encrypted Core (not statically
-# readable, see Nt8Tools finding of the same day), so the only place to be
+# readable), so the only place to be
 # correct about it is the caller's budget: a bound of SLOW_WAIT (49 s at the
 # caller's --stage-wait 20) turned that one healthy-but-slow connect into an
 # ERROR, which ended a ~29 h batch of runs that stops on the first one - at
@@ -309,8 +309,8 @@ PREFLIGHT_REPORT_S = 30      # a console line while waiting, at most this often
 #    26.1 s   nothing reported within the 25 s budget, then NinjaTrader stayed
 #             busy for another 31 s
 # Same action, different duration - because the second time the data was not
-# already there. A budget of 25 s does not measure the action, it measures my
-# impatience, and then reports a healthy step as failed.
+# already there. A budget of 25 s does not measure the action, it measures the
+# caller's impatience, and then reports a healthy step as failed.
 #
 # This is NOT a timeout in the forbidden sense: nothing here waits for a
 # duration. The wait still ends on NinjaTrader's own log entry; this number is
@@ -364,7 +364,7 @@ class _FileOnly:
     """The debug sink of the end-user console mode: everything print()ed goes
     into the transcript file ONLY - the console stays clean for user() lines.
 
-    Requirement (2026-08-21): no debug output in the user console. Where
+    Rule: no debug output in the user console. Where
     debug output is needed it belongs in a second console or in a log file.
     """
 
@@ -506,7 +506,7 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
     req["ttlSec"] = wait
     # If this driver is killed, the AddOn restores the baseline itself after
     # this many seconds. A killed process cannot run its own teardown -
-    # measured three times on 2026-08-19, each time the user found the mess.
+    # measured three times on 2026-08-19, each time the mess stayed behind.
     #
     # The AddOn counts from the moment it ANSWERED the previous request (not
     # from the receipt: measured 2026-09-07, a 282 s connect outlived a lease
@@ -583,9 +583,9 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
             # Every stage waits for its OWN effect and then returns - while
             # NinjaTrader keeps working. The next stage used to fire into exactly
             # that. Measured 2026-08-20: the same `attach` came back in 1.9 s when
-            # the user stepped through by hand and left its enable operation
-            # Pending when the steps ran back to back. His keypresses had been
-            # supplying the missing handshake.
+            # stepped through by hand and left its enable operation Pending when the
+            # steps ran back to back. The keypresses had been supplying the missing
+            # handshake.
             #
             # `uiidle` posts a delegate at ApplicationIdle and reports when the
             # dispatcher has drained its queue - NinjaTrader's own signal, no
@@ -654,9 +654,8 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
         # transcript away - the same shape the closing result block uses. It is
         # written to the CONSOLE only; the transcript already has the stage's own
         # lines and does not need 250 progress samples per stage.
-        # The shape is not invented here. It is the progress line the headless
-        # runner already writes, so a run over the bridge and a run beside it read
-        # the same:
+        # The shape is not invented here. It is a headless runner's progress line,
+        # so a run over the bridge and a run beside it read the same:
         #     "\r" + <data time> + "Progress | " + label + " | " + pct + " %   "
         # emitted only when the permille CHANGED, which is what keeps it one line
         # instead of a stream. No bar, no seconds - percent, like everywhere else.
@@ -724,7 +723,7 @@ def shot(label: str) -> None:
 
     An action is not verified until it has been LOOKED at. The bridge takes the
     picture inside NinjaTrader, which is the only way to reach the monitor the
-    Control Center actually sits on (measured 2026-08-19: it is at Left=-942, and
+    Control Center actually sits on (measured 2026-08-19: on a secondary monitor,
     a desktop capture of the primary screen never shows it).
 
     Never raises - a missing picture must not end a run.
@@ -754,9 +753,8 @@ def shot(label: str) -> None:
 # NinjaTrader's OWN log, through the AddOn's in-memory Cbi.Log buffer.
 #
 # ⚠ These three were CALLED in six places and DEFINED NOWHERE - not in this
-# file, not in any backup, not in git (checked 2026-08-20 across commit
-# 0a403be and every .bak in the workbench). Every one of those paths would have
-# died with NameError, and a syntax-only check reports such a file as fine,
+# file, not in any backup, not in git (checked 2026-08-20). Every one of those
+# paths would have died with NameError, and a syntax-only check reports such a file as fine,
 # because Python resolves names at run time. Only a name check finds it.
 #
 # ⚠ MATCH ON THE NAME, NOT ON THE TEXT. A buffer line is
@@ -881,7 +879,7 @@ def nt_check(since: int, expect: str = None, contains: str = None, what: str = "
     # the buffer is quiet. See nt_entries for the measurement.
     expect_pool = nt_entries(since, contains=expect) if expect else entries
     # Sound playback is cosmetics, not the action under test. Measured
-    # 2026-08-21: in an RDP session without an audio device NinjaTrader logs
+    # 2026-08-21: in a session without an audio device NinjaTrader logs
     #   |Error|...|CoreSoundThreadProc|...|Failed to play sound file
     #   '...Connected.wav': BadDeviceId calling waveOutOpen
     # for the CONNECT chime - the connection itself was up. Treating that as
@@ -1092,8 +1090,8 @@ def restore_baseline(strategy: str) -> list:
 
     It used to be ten stages from here - park, disable, remove, answer, close -
     each with its own budget. Measured 2026-08-19: whenever NinjaTrader was busy
-    (which is exactly when a cleanup is needed) that cost minutes, and the user
-    watched an enabled strategy sit there while this tool "cleaned up". The
+    (which is exactly when a cleanup is needed) that cost minutes, and an
+    enabled strategy sat there while this tool "cleaned up". The
     AddOn's `restore` stage disconnects first - the universal abort, and the one
     thing proven to stop the transport - then clears rows and dialogs, and
     answers in about 5 s.
@@ -1277,7 +1275,7 @@ def main() -> int:
     # ⚠ SINGLE-STEP MODE. The run stops after every visible sub-step and waits for
     # a keypress. The pause belongs HERE, in the script, not in whoever is watching
     # it: a step that only pauses when someone remembers to pause it is not a
-    # controlled run. Requested by the user on 2026-08-20 so each sub-step can be
+    # controlled run. It exists so each sub-step can be
     # inspected before the next one changes the state it was measured in.
     ap.add_argument("--step", action="store_true",
                     help="stop after every sub-step and wait for a keypress")
@@ -1460,7 +1458,7 @@ def main() -> int:
         """Abort on the first failed MANDATORY step.
 
         Measured 2026-08-18/19: the chain pulled four modes through although
-        enabling failed in every one - four empty cells, 90 minutes, and
+        enabling failed in every one - four empty results, 90 minutes, and
         "archived" at the end. A run that logs failures and carries on is worse
         than one that stops: it looks like a result.
         """
@@ -1576,7 +1574,7 @@ def main() -> int:
         #
         # First attempt asked this visibly, and the hard stop killed the run on
         # `timer  field 'timer' not found or null` - which is the NORMAL reading
-        # before Playback is connected. The probe was right, the verdict was mine:
+        # before Playback is connected. The probe was right, the verdict was wrong:
         # a stage whose steps legitimately fail in the pre-connect state cannot be
         # used as a pass/fail gate. show=False keeps the hard stop out of it, and
         # the only question asked here is whether an answer came back at all.
@@ -1649,8 +1647,8 @@ def main() -> int:
             raise RuntimeError("preflight: the bridge did not answer")
 
         # ================================================================
-        # THE OPERATING SEQUENCE, as specified by the user on 2026-08-19 and
-        # verified step by step against the panel that same day.
+        # THE OPERATING SEQUENCE, specified and verified step by step against the
+        # panel on 2026-08-19.
         #
         #   1  EVERY connection off, then the baseline: no strategy rows, no
         #      dialogs, transport parked. Step 1 has to survive any starting
@@ -1880,7 +1878,7 @@ def main() -> int:
             # and it does that ON THE UI THREAD. Every observation that goes through the
             # dispatcher therefore queues BEHIND the very work it wants to observe - which
             # is how a busy NinjaTrader became a frozen one three times on 2026-08-19, the
-            # last time with 13 of my own polls stacked up behind it.
+            # last time with 13 of the bridge's own polls stacked up behind it.
             #
             # NinjaTrader logs `Enabling NinjaScript strategy '<Name>/<id>'` through
             # Cbi.Log, and the AddOn buffers those entries as they arrive. The `ntlog`
@@ -1970,7 +1968,7 @@ def main() -> int:
         #                                  at the end of every run
         #   IsAvailableChanged ........... subscribed 2026-08-19, never fired
         #   the progress slider .......... falls short of its maximum when data is
-        #                                  missing (user, 2026-08-19) - waiting hangs
+        #                                  missing (2026-08-19) - waiting hangs
         #   a strategy's own counter file  only some strategies write one
         print("--- playing ---")
         terminated = played = False
@@ -1993,7 +1991,7 @@ def main() -> int:
             if _now_n:
                 user(f"NinjaTrader order-rejection notice confirmed by the bridge "
                      f"({_now_n:d} this sample, {_total_n:d} in this run)")
-            # ⚠ startswith, not equality - and that is a repair of my own regression.
+            # ⚠ startswith, not equality - and that is a repair of a regression.
             # The stage used to answer a bare "yes"/"no"; on 2026-08-20 the text was
             # changed to "yes - the strategy has terminated" so that `ok` could stop
             # being a data field. This comparison was not carried along, so it never
@@ -2054,7 +2052,7 @@ def main() -> int:
             # What the bot printed since the last round - shown right after the
             # harness line, so [BOT] lines and phase lines interleave in order.
             print_bot_output()
-            # ⚠ CAUSE AND EFFECT - not to be swapped (user, 2026-08-21):
+            # ⚠ CAUSE AND EFFECT - not to be swapped (2026-08-21):
             # State.Terminated is the EFFECT of the enable checkbox being taken
             # away (our teardown, a hand, or NT8's own error handling) - never a
             # sign that the data ran out. The grid row count reaching 0 is the

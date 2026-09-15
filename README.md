@@ -315,16 +315,15 @@ run window is reported.
 ### optimize / walkforward / multiobjective — NinjaTrader's own parameter search
 
 ```bash
-python -m nt8bridge walkforward --template="C:\...\Tests\WFO_VariantA.xml" --opt=DeltaVolume1:150:250:50                                 --OptimizationPeriod=10 --TestPeriod=5 --out=C:
-uns\wfo.csv
+python -m nt8bridge walkforward --template="C:\...\Tests\WFO_VariantA.xml" --opt=Fast:20:30:5 --OptimizationPeriod=10 --TestPeriod=5 --out=C:\runs\wfo.csv
 python -m nt8bridge optimize   --template=VariantA --opt="Fast:20:30:5,Slow:50:100:10" --fitness=MaxProfitFactor
 python -m nt8bridge walkforward --template=VariantA --opt=Fast:20:30:5 --anchored --optimizer=genetic
 ```
 
 The three commands drive the Strategy Analyzer's Optimize, Walk Forward and Multi-objective
-runs the way the Run button does, and take the **same options as the headless runner
-Nt8Cli's `optimize` / `walkforward` / `multiobjective`**, so a run moves between the two hosts
-by changing nothing but the program name:
+runs the way the Run button does. Their options follow a headless runner's syntax, so a run
+can move between this bridge and a GUI-less host with the same syntax by changing nothing but
+the program name:
 
 * `--template` names the strategy template file (full path, or a bare name in the strategy's
   template folder, as `satemplate`); it carries the complete parameter set, instrument and window.
@@ -341,13 +340,12 @@ by changing nothing but the program name:
 * `--anchored` (walkforward only) selects the anchored walk-forward.
 * `--out=<csv>` copies the CSV files the strategy wrote during the run — read from the
   strategy's `LogModes` folder when it has that property, else `<MyDocuments>\cAlgo\Logfiles`
-  — as `<out>` for one file and `<out>_<k><ext>` in creation order for several (Nt8Cli's rule).
+  — as `<out>` for one file and `<out>_<k><ext>` in creation order for several.
   When the strategy has a `LogFilePrefix` property the AddOn sets it to `ntbridge-<Strategy>`
-  for the run and counts only files with that prefix, so a headless fleet writing into the
-  same folder meanwhile cannot land in this run's output (Nt8Cli sets its own prefix the same way).
-  Measured 2026-09-09 with eight headless runners writing into the folder during the run: 14
-  files listed, all `ntbridge-RoadToSuccess*.csv`, none of the runners' `ntcliinst<N>-*` files
-  (the first build of this feature had listed four of them).
+  for the run and counts only files with that prefix, so other writers using the same folder
+  meanwhile cannot land in this run's output. Measured 2026-09-09 with other processes writing
+  into the folder during the run: 14 files listed, all `ntbridge-<Strategy>*.csv`, none of the
+  other writers' files (the first build of this feature had listed four of them).
 * `--timeout` (default 1800 s) bounds the wait on both sides: the AddOn stops polling the grid
   when the client stops polling the file.
 
@@ -368,9 +366,9 @@ profit, profit factor, drawdown, performance value) and the entry's own `optimiz
 the files copied by `--out`. Exit 0 on `status: ok`, 1 on an error from the AddOn, 2 on a
 refused option.
 
-Parity with the headless runner, measured 2026-09-08 on NinjaTrader 8.1.8.2 (RoadToSuccess,
-NQ 09-26, 16.06.–13.07.2026, `--opt=DeltaVolume1:150:250:50`, in-sample 10 / out-of-sample 5
-days; bridge run 594 s, Nt8Cli `walkforward` on the same template and Custom.dll sources):
+Parity with a GUI-less host, measured 2026-09-08 on NinjaTrader 8.1.8.2 (NQ 09-26,
+16.06.–13.07.2026, one optimized parameter 150–250 step 50, in-sample 10 / out-of-sample 5
+days; bridge run 594 s, the other host's walk-forward on the same template and strategy sources):
 4 windows, out-of-sample parameter 250 / 250 / 250 / 150 with 7 / 3 / 14 / 3 trades on both
 hosts; in-sample ranking per window identical (250 > 200 > 150 three times, 150 > 200 > 250 in
 the last window); every CSV written on both sides byte-identical (11 of 11, all 4 out-of-sample

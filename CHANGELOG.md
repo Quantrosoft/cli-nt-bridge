@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - **`optimize`, `walkforward`, `multiobjective`: NinjaTrader's own parameter search on the
-  Strategy Analyzer tab, with the headless runner's option syntax.**
+  Strategy Analyzer tab, with a headless runner's option syntax.**
 
   One request kind, `analyzerrun`, serves the three commands. The AddOn puts the template on
   the tab (as `satemplate`), writes the `--Name=value` overrides, fills the template's
@@ -26,7 +26,7 @@ All notable changes to this project are documented here. The format follows
   parameter to optimize.` and runs nothing (NinjaTrader 8.1.8.2, 2026-09-08) — which is why
   the ranges are written by the AddOn and a request without `--opt` is refused.
 
-  Measured against the headless runner (Nt8Cli `walkforward`, same template, same strategy
+  Measured against a GUI-less host (its walk-forward, same template, same strategy
   sources, 2026-09-08): 4 windows, out-of-sample parameter 250/250/250/150 with 7/3/14/3
   trades on both hosts, in-sample ranking per window identical, 11 of 11 CSVs written on both
   sides byte-identical (all 4 out-of-sample files among them); the grid held one summary
@@ -36,7 +36,7 @@ All notable changes to this project are documented here. The format follows
   Re-measured 2026-09-09 after those changes: 17 rows (one summary, four windows, twelve
   combinations, no Guid twice), `parameters` carrying only the optimized name, `windows` and
   `rankedWindows` 4, the template path echoed as sent, and only the run's own
-  `ntbridge-RoadToSuccess*.csv` files listed while eight headless runners wrote into the same
+  `ntbridge-<Strategy>*.csv` files listed while other processes wrote into the same
   folder; out-of-sample 250/250/250/150 with 7/3/14/3 trades as before.
 
 ### Fixed
@@ -55,7 +55,7 @@ All notable changes to this project are documented here. The format follows
   `Cbi.Connection.Disconnect` at 08:23:21.428 — the same millisecond in both files. The
   driver was alive throughout, polling for the result; a synchronous stage gives it nothing
   to send. The same line precedes every failed run of 2026-09-03 whose connect took longer
-  than 120 s (`__76`–`__81`: 225–385 s), and the run then died one to three stages later
+  than 120 s (six runs, 225–385 s), and the run then died one to three stages later
   with `Playback window not found`, `panel usable - STILL not usable` or
   `5 range: Reset - TargetInvocationException`, none of which named the cause.
 
