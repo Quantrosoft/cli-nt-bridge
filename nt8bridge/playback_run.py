@@ -513,6 +513,10 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
     # taken at receipt and the AddOn tore down the connection it had just
     # built). `lease=0` is the clean exit: the run's last requests send it, so
     # a finished run leaves nothing that fires two minutes later.
+    #
+    # Only requests that CARRY `leaseSec` re-arm it - an answer to another bridge
+    # client (a watchdog polling `connections`) is no proof this driver lives.
+    # That is why shot() below sends the same lease with its screenshot requests.
     req["leaseSec"] = lease
     out = RES / (f"playbackrun_{rid}.json")
     try:
@@ -576,7 +580,7 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
                 for s in d.get("steps", []):
                     print(f"   {s['step'].strip()[:30]:<30} "
                           f"{'ok' if s['ok'] else 'FAIL':<6} {s['detail'][:78]}")
-            shot(title)          # look at what the stage actually did
+            shot(title, lease)   # look at what the stage actually did
 
             # ⚠ HANDSHAKE BETWEEN THE STEPS, NOT ONLY INSIDE THEM.
             #
@@ -719,13 +723,19 @@ def stage(title: str, req: dict, wait: int = None, show: bool = True,
 _shots = {"dir": None, "n": 0}
 
 
-def shot(label: str) -> None:
+def shot(label: str, lease: int = 120) -> None:
     """Capture NinjaTrader's own windows after an action.
 
     An action is not verified until it has been LOOKED at. The bridge takes the
     picture inside NinjaTrader, which is the only way to reach the monitor the
     Control Center actually sits on (measured 2026-08-19: it is at Left=-942, and
     a desktop capture of the primary screen never shows it).
+
+    `lease` is the `leaseSec` of the stage this picture belongs to, sent along
+    with each screenshot request. The AddOn re-arms the driver lease only for
+    requests that carry `leaseSec`, and the two pictures may take up to 120 s
+    each - without it the lease could run out between two stages. Passing the
+    stage's own value keeps a `lease=0` teardown released.
 
     Never raises - a missing picture must not end a run.
     """
@@ -743,7 +753,8 @@ def shot(label: str) -> None:
             pass
         (TRIG / (f"screenshot_{rid}.json")).write_text(
             json.dumps({"id": rid, "kind": "screenshot", "title": title,
-                        "out": str(png), "ttlSec": 120}), encoding="utf-8")
+                        "out": str(png), "ttlSec": 120, "leaseSec": lease}),
+            encoding="utf-8")
         for _ in range(120):
             if out.exists():
                 break

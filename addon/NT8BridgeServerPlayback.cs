@@ -1059,33 +1059,38 @@ namespace NinjaTrader.NinjaScript.AddOns
         // The last lease span the driver declared - it becomes the budget of a
         // lease-triggered RestoreBaselineNow (the caller's ttl, per the rule that
         // no wait invents its own bound). 120 is the span the driver sends today
-        // (playback_run.py stage(): leaseSec=120); overwritten by every request.
+        // (playback_run.py stage(): leaseSec=120); overwritten by every request
+        // that carries a positive `leaseSec`.
         private double _lastLeaseSec = 120.0;
 
-        private void NoteLease(string json)
+        // Returns true when the request carried a readable `leaseSec` - i.e. it
+        // came from the lease holder. Only such a request re-arms the lease once
+        // answered (HandleTrigger's finally, see RearmLease).
+        private bool NoteLease(string json)
         {
-            if (json == null) return;
+            if (json == null) return false;
             const string pat = "\"leaseSec\"";
             int i = json.IndexOf(pat, StringComparison.Ordinal);
-            if (i < 0) return;
+            if (i < 0) return false;
             int c = json.IndexOf(':', i + pat.Length);
-            if (c < 0) return;
+            if (c < 0) return false;
             int p2 = c + 1;
             while (p2 < json.Length && (char.IsWhiteSpace(json[p2]) || json[p2] == '"')) p2++;
             int s = p2;
             while (p2 < json.Length && (char.IsDigit(json[p2]) || json[p2] == '.')) p2++;
             double v;
             if (p2 <= s || !double.TryParse(json.Substring(s, p2 - s),
-                    System.Globalization.NumberStyles.Float, InvCi, out v)) return;
+                    System.Globalization.NumberStyles.Float, InvCi, out v)) return false;
             if (v <= 0.0)
             {
                 _leaseUntilUtc = DateTime.MinValue;      // clean exit - nothing to guard
                 _leaseRestoreDone = true;
-                return;
+                return true;
             }
             _leaseUntilUtc = DateTime.UtcNow.AddSeconds(v);
             _lastLeaseSec = v;
             _leaseRestoreDone = false;
+            return true;
         }
 
         // The deadline runs from the moment a request was ANSWERED, not received.
@@ -1104,6 +1109,16 @@ namespace NinjaTrader.NinjaScript.AddOns
         // gate - so the receipt-time deadline is never consulted mid-stage, only
         // the stale one afterwards. HandleTrigger therefore re-arms the lease in
         // its finally: a request that has just been answered is the proof of life.
+        //
+        // ⚠ ONLY A REQUEST THAT CARRIED `leaseSec` RE-ARMS. HandleTrigger calls this
+        // only when NoteLease reported one. An answer to any other client proves
+        // nothing about the driver: re-arming on every request let a bridge client
+        // that polls on its own - e.g. a watchdog sending `connections` once a
+        // minute, less than the 120 s lease - extend a dead driver's lease forever,
+        // so the teardown never fired (reported by the upstream reviewer on PR #7;
+        // the unconditional call is visible in c558fc3, NT8BridgeServer.cs:239).
+        // The driver's own screenshot requests carry the stage's `leaseSec` for
+        // exactly this reason (playback_run.py shot()).
         private void RearmLease()
         {
             if (_leaseRestoreDone) return;                // released (leaseSec <= 0) or fired
