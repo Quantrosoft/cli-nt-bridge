@@ -585,8 +585,8 @@ def _satemplate(template: str, timeout: float) -> int:
 def _analyzerrun(args, extra: list) -> int:
     """optimize / walkforward / multiobjective: one request kind, the mode from
     the command name. Unknown --Name=value tokens are strategy property
-    overrides, the rule the headless runner (Nt8Cli) applies to the same
-    commands - so `--OptimizationPeriod=10 --TestPeriod=5` works on both."""
+    overrides, the rule a headless runner applies to the same commands -
+    so `--OptimizationPeriod=10 --TestPeriod=5` works on both."""
     cmd = args.command
     try:
         ntanalyzerrun.parse_opt_spec(args.opt)
@@ -1105,8 +1105,8 @@ def main(argv: list[str]) -> int:
                               "holds, the strategy is selected first - the other order "
                               "silently discards the template.")
     p_satpl.add_argument("--timeout", type=float, default=30.0)
-    # optimize / walkforward / multiobjective share one option set with the
-    # headless runner (Nt8Cli): --template --opt --optimizer --fitness --out, and
+    # optimize / walkforward / multiobjective share one option set with a
+    # headless runner: --template --opt --optimizer --fitness --out, and
     # --Name=value for any strategy property. allow_abbrev=False so that an
     # override such as --OptimizationPeriod=10 is never read as an abbreviation.
     for _cmd in ntanalyzerrun.COMMANDS:

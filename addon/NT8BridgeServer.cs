@@ -512,7 +512,7 @@ namespace NinjaTrader.NinjaScript.AddOns
 
                 // The newest NinjaScript source under bin\Custom: a source newer than the
                 // executing assembly is code NinjaTrader has not compiled into what it runs -
-                // the 33-minute-wasted-cell condition (deployed, never rebuilt or reloaded).
+                // the stale-code condition (deployed, never rebuilt or reloaded).
                 string newestSrc = null;
                 DateTime? newestSrcUtc = null;
                 try

@@ -28,9 +28,9 @@ from nt8bridge import analyzerrun, cli
 
 
 def test_parse_opt_spec_accepts_the_headless_runner_syntax():
-    entries = analyzerrun.parse_opt_spec("DeltaVolume1:150:250:50,Fast:20:30:5")
-    assert [e["name"] for e in entries] == ["DeltaVolume1", "Fast"]
-    assert entries[0] == {"name": "DeltaVolume1", "min": "150", "max": "250", "step": "50"}
+    entries = analyzerrun.parse_opt_spec("Slow:150:250:50,Fast:20:30:5")
+    assert [e["name"] for e in entries] == ["Slow", "Fast"]
+    assert entries[0] == {"name": "Slow", "min": "150", "max": "250", "step": "50"}
 
 
 @pytest.mark.parametrize("spec, fragment", [
@@ -40,7 +40,7 @@ def test_parse_opt_spec_accepts_the_headless_runner_syntax():
     ("", "needs --opt"),
     ("2Fast:1:2:1", "not a property name"),
 ])
-def test_parse_opt_spec_refuses_the_same_mistakes_as_nt8cli(spec, fragment):
+def test_parse_opt_spec_refuses_malformed_specs(spec, fragment):
     with pytest.raises(ValueError) as e:
         analyzerrun.parse_opt_spec(spec)
     assert fragment in str(e.value)

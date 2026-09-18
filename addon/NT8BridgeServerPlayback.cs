@@ -243,7 +243,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         //
         //    * no file rotation, no retention window, no ".en.txt" twin to pick between
         //    * event-driven, so there is nothing to be "0.8 s too early" for - which is
-        //      exactly the mistake that made me report "NinjaTrader never armed it" three
+        //      exactly the mistake behind the report "NinjaTrader never armed it" three
         //      times on 2026-08-19 while it had armed it a moment later
         //    * a bot cannot write into it, cannot suppress it, and does not have to exist
         //
@@ -327,9 +327,8 @@ namespace NinjaTrader.NinjaScript.AddOns
         //  NinjaTrader is allowed to take.
         // ── Phase 3 of the handshake: wait until the state CHANGES ───────────────────────────
         //
-        //  User, 2026-08-20 (translated from German): "if you do not wait at all after an
-        //  action, it can happen that the system has not reacted to your action yet and
-        //  therefore reports ready straight away."
+        //  Without any wait after an action, the system may not have reacted to the
+        //  action yet and therefore report ready straight away.
         //
         //  Exactly what happened with `ready`: it answered after 1.0 s with the state from
         //  BEFORE the connect. Phase 3 closes that hole - the value has to leave where it was,
@@ -358,7 +357,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         //
         // Between two stages there was no handshake at all. Each stage waited for its
         // OWN effect and then returned, while NinjaTrader kept working - and the next
-        // stage fired into that. When the user stepped through the chain by hand, his
+        // stage fired into that. Stepping through the chain by hand, the
         // keypresses were accidentally supplying the missing pause; measured
         // 2026-08-20, the same `attach` that came back in 1.9 s between keypresses left
         // its enable operation Pending when the steps ran back to back.
@@ -638,7 +637,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         // ── When the Playback panel becomes usable, as an EVENT ──────────────────────────────
         //
         //  Polling `slider.IsEnabled` against a deadline was wrong twice over:
-        //    * it needs a number nobody can know. It took ~6 s here and the user says it can
+        //    * it needs a number nobody can know. It took ~6 s in one measurement and can
         //      take minutes; any deadline is either a false alarm or a long stall.
         //    * running it late reports "never went grey" for a panel that is perfectly fine.
         //
@@ -694,10 +693,10 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         // ── Waiting on an EVENT, never on a clock ────────────────────────────────────────────
         //
-        //  User, 2026-08-20 (translated from German): "NO TIMEOUTS!!!! ON NO ACTION!!! this
-        //  can take several minutes when the cache is not loaded."
+        //  No timeout on any action: it can take several minutes when the cache is not
+        //  loaded.
         //
-        //  Right. Any constant in here is a guess about NinjaTrader's workload, and every
+        //  Any constant in here is a guess about NinjaTrader's workload, and every
         //  guess is either a false alarm or a stall. WPF already says when the work is done:
         //
         //    EventManager.RegisterClassHandler(typeof(Window), Loaded)  -> the Playback
@@ -918,8 +917,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 //
                 // It used to be 2 x 2500 ms. Five seconds per measurement, called up to
                 // five times by ParkTransport, made a cleanup take ~25 s - and a teardown
-                // that slow does not get run when it matters. The cost was mine, not
-                // NinjaTrader's.
+                // that slow does not get run when it matters. The cost was the bridge's,
+                // not NinjaTrader's.
                 DateTime prev = (DateTime)piNow.GetValue(null);
                 seen = prev;
                 Thread.Sleep(1200);
@@ -1103,7 +1102,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         // same millisecond as Cbi.Connection.Disconnect in the trace). The driver
         // was alive the whole time, polling for the result; a synchronous stage
         // gives it nothing to send. The same line precedes every run of 2026-09-03
-        // whose connect took longer than 120 s (__76..__81).
+        // whose connect took longer than 120 s (six runs).
         //
         // CheckLease cannot run WHILE a stage executes - one poller thread, one
         // gate - so the receipt-time deadline is never consulted mid-stage, only
@@ -1658,9 +1657,9 @@ namespace NinjaTrader.NinjaScript.AddOns
         //     template without ranges);
         //   * an Optimizer instance on the template (default | genetic) and, when
         //     asked for, an OptimizationFitness by class name;
-        //   * the strategy's Category set to the run mode - what the headless
-        //     runner (Nt8Cli) had to set itself before its walk-forward applied the
-        //     in-sample optimization; set here too, so both hosts run the same
+        //   * the strategy's Category set to the run mode - what a GUI-less host
+        //     had to set itself before its walk-forward applied the in-sample
+        //     optimization; set here too, so both kinds of host run the same
         //     template state whatever the GUI's own Run handler does with it;
         //   * BacktestType on TabStrategyProperties, then RunCommand.
         //
@@ -1669,7 +1668,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         //  REPLACES a re-run's entry, so a count says nothing), with its window,
         //  parameters, optimization ranges, performance and the optimizer's ranked
         //  results, plus the CSV files the strategy wrote during the run into its
-        //  LogModes folder (the same folder rule the headless runner applies).
+        //  LogModes folder (see StrategyLogDir).
         //
         //  Completion is taken from the tab's own progress control: the run is over
         //  when the progress had been visible and is not any more, and the new rows
@@ -1838,9 +1837,9 @@ namespace NinjaTrader.NinjaScript.AddOns
                     catch (Exception) { }
 
                     // 7. Where the strategy writes, and what the grid holds, before the run.
-                    //    The CSV prefix is set per host, as Nt8Cli sets its own: several
-                    //    writers share one log folder (a headless fleet beside this GUI),
-                    //    and only files with this host's prefix are this run's output.
+                    //    The CSV prefix is set per host: several writers can share one
+                    //    log folder, and only files with this host's prefix are this
+                    //    run's output.
                     string logDir = StrategyLogDir(strat);
                     string csvPrefix = SetLogFilePrefix(strat, "ntbridge-" + strat.GetType().Name);
                     HashSet<string> csvBefore = CsvNames(logDir);
@@ -2127,7 +2126,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             sb.Append("]");
             sb.Append(",\"windows\":").Append(windows).Append(",\"rankedWindows\":").Append(ranked);
             // The CSV files the strategy wrote during the run, in creation order -
-            // the order the headless runner numbers them in. With a prefix set, a
+            // which is the order `--out` numbers them in. With a prefix set, a
             // file another writer added to the folder meanwhile is not this run's.
             List<string> produced = new List<string>();
             try
@@ -2176,9 +2175,8 @@ namespace NinjaTrader.NinjaScript.AddOns
         }
 
         // The folder the strategy logs into: the path token of its LogModes
-        // property when it has one, else <MyDocuments>\cAlgo\Logfiles - the rule
-        // the headless runner (Nt8Cli.StrategyLogDir) applies, so both hosts
-        // collect the same files.
+        // property when it has one, else <MyDocuments>\cAlgo\Logfiles - the same
+        // rule a GUI-less host can apply, so both collect the same files.
         private static string StrategyLogDir(StrategyBase strat)
         {
             string logDir = null;
@@ -2201,7 +2199,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         }
 
         // The strategy's CSV file prefix, when it has one to set: a public string
-        // property LogFilePrefix with a setter, static (RoadToSuccess declares it
+        // property LogFilePrefix with a setter, static (a strategy may declare it
         // static) or instance. Returns the value written, or null when the strategy
         // has no such property - then every new file in the folder counts.
         private static string SetLogFilePrefix(StrategyBase strat, string value)
@@ -2718,7 +2716,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // does not contradict the run. Worth doing when a display exists.
                     //
                     // The values themselves are set by the NEXT stage, `range`, straight on
-                    // the adapter (FromEst/ToEst), which is the route our GUI-less host
+                    // the adapter (FromEst/ToEst), which is the route a GUI-less host
                     // uses for everything. So headless there is nothing here to do and
                     // nothing lost by not doing it - but the run died here anyway, because
                     // a stage that cannot find its window returns a failed step.
@@ -3324,7 +3322,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // rendering). Matching on the name is what makes a check survive an update
                     // and a different UI language. But the name of an entry one has never seen
                     // cannot be guessed - and guessing it is exactly what this stage replaces
-                    // (2026-08-20: I had written "NinjaScriptStrategyDisabl" from thin air).
+                    // (2026-08-20: an earlier version guessed "NinjaScriptStrategyDisabl").
                     //
                     // NinjaTrader exposes its resources as static string properties on NTRes.*
                     // types, named after the key. So the key for a text is found by asking every
@@ -4130,7 +4128,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // 1.0 s while an independent sampling run showed the panel stays disabled
                     // for 11.3 s after the connect. It had read the state from BEFORE the
                     // connect, and the run then wrote its source, dates and speed into a panel
-                    // NinjaTrader was about to rebuild - the user saw the box still grey while
+                    // NinjaTrader was about to rebuild - the box was still grey while
                     // the run carried on.
                     //
                     // So: the panel must be seen DISABLED first, then ENABLED, and it must STAY
@@ -4413,7 +4411,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     if (act == "save")
                     {
                         // Saved from a fresh instance plus the request's params, so the whole
-                        // template set for a test matrix can be produced from the CLI.
+                        // template set for a series of tests can be produced from the CLI.
                         Type tt2 = TemplateType();
                         MethodInfo miSave = tt2 == null ? null : tt2.GetMethod("SaveFullStrategyTemplate",
                             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
@@ -5432,7 +5430,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                         // written here. But its getter does not report the pending value
                         // yet: measured, both read straight back as DateTime.MinValue,
                         // and the run died on a read-back of a state that does not exist
-                        // before the connection is up. Our own host writes the same
+                        // before the connection is up. A GUI-less host writes the same
                         // statics and reads FromEst=10.08.2026 back AFTER connecting.
                         //
                         // So the confirming read is the step further down. Nothing is
@@ -5450,7 +5448,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                         // days that exist could never pass it: measured coverage
                         // "FromEst=10.08.2026 00:00:00 ToEst=10.08.2026 23:59:59" against a
                         // --from/--to of 10.08.2026 reported "requested window inside it: False",
-                        // because it was comparing 09.08. against 10.08. Two of three cells died
+                        // because it was comparing 09.08. against 10.08. Two of three runs died
                         // on that, after connecting perfectly.
                         if (!string.IsNullOrWhiteSpace(fromS))
                         {
@@ -5480,7 +5478,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                         //   + PlaybackSpeed .................... RUNS
                         //
                         // It was written here for one afternoon on 2026-08-24, on the theory
-                        // that our GUI-less host does it and connects. That theory did not
+                        // that a GUI-less host does it and connects. That theory did not
                         // hold - the connect kept failing with the write in place, and what
                         // actually fixed it was watching the Connection that Connect RETURNS
                         // instead of a static that stays null. So the write is gone again and
@@ -5546,8 +5544,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                             // This polled the static Connection.PlaybackConnection and read
                             // "Status=null" for the whole budget, every single run - null is
                             // not a status, it is this code looking where the connection was
-                            // never put. Our own host, which connects reliably on the same
-                            // machine, watches the RETURN VALUE and nothing else.
+                            // never put. A GUI-less host that connects reliably on the same
+                            // setup watches the RETURN VALUE and nothing else.
                             Connection conn = Connection.Connect(opts);
                             if (conn == null)
                             {
@@ -5605,8 +5603,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                             // 11.08.2026:
                             //     FromEst read=12.03.2013   ToEst read=18.08.2026 23:59:59
                             // which is the span of everything in the replay store. Connecting
-                            // replaces the requested window with the available one - our own
-                            // host knows this and positions AGAIN afterwards, and stage
+                            // replaces the requested window with the available one - a GUI-less
+                            // host that knows this positions AGAIN afterwards, and stage
                             // `range` in this file carries the same note: "AFTER connect -
                             // before it the adapter discards these".
                             //
@@ -5749,18 +5747,18 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // "Connected" is not "usable". NinjaTrader rebuilds the Playback panel after
                     // the connect, and anything written while that runs goes into a control it is
                     // about to discard. Measured 2026-08-19: about 11 s - but that is not a
-                    // constant to rely on, the user says it can take minutes. So the step WAITS
+                    // constant to rely on, it can take minutes. So the step WAITS
                     // and REPORTS the duration it measured instead of assuming one. The bound
                     // below is a backstop against waiting forever, not a verdict: reaching it is
                     // reported as "still not usable", never quietly as success.
-                    // ⚠ WAIT ON THE EVENT, NEVER ON A CLOCK (established 2026-08-20, shouted).
+                    // ⚠ WAIT ON THE EVENT, NEVER ON A CLOCK (established 2026-08-20).
                     //
-                    // Everything that used to stand here was a number I invented: 40 s for the
-                    // panel, 1500 ms "stable", a 10-minute bound. The user is right that these
-                    // are guesses about NinjaTrader's workload - loading a cold cache can take
-                    // minutes - and a guess is either a false alarm or a stall.
+                    // Everything that used to stand here was an invented number: 40 s for the
+                    // panel, 1500 ms "stable", a 10-minute bound. These are guesses about
+                    // NinjaTrader's workload - loading a cold cache can take minutes - and a
+                    // guess is either a false alarm or a stall.
                     //
-                    // So the end of this action is marked by NinjaTrader, not by me:
+                    // So the end of this action is marked by NinjaTrader, not by the bridge:
                     //     Window.LoadedEvent (class handler)  the Playback window exists
                     //     slider.IsEnabledChanged             its controls became usable
                     // ArmPanelWatch() was called BEFORE connecting, so no event can slip through
@@ -6069,8 +6067,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // The SECOND HALF of `attach`, split off 2026-08-20. Measured that
                     // evening: the enable fired in the same breath as the load stuck
                     // inside StrategyEnable twice (runs 9/10, operation Executing, no
-                    // 'Enabling' log line, Control Center frozen) - while the user
-                    // enabling the SAME loaded row by hand worked (log 20:56:36).
+                    // 'Enabling' log line, Control Center frozen) - while enabling
+                    // the SAME loaded row by hand worked (log 20:56:36).
                     // This stage arms an ALREADY LOADED row in its own request, so the
                     // gap between load and enable becomes the variable under test.
                     Window ccA = FindWindowByTitle("Control Center");
@@ -6189,7 +6187,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // With a template, the strategy IS the restored object - NinjaTrader
                     // built it from the XML exactly as the dialog's `load` button would.
                     // The request's own fields are applied afterwards and therefore win, so
-                    // one template can serve a whole matrix of ranges and bar types.
+                    // one template can serve a whole series of ranges and bar types.
                     string tmplName = ExtractJsonString(triggerJson, "template");
                     // ⚠ CREATE THE STRATEGY ON THE CONTROL CENTER'S DISPATCHER - NEVER
                     // ON THIS POLLER THREAD.
@@ -6504,7 +6502,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                             if (ReferenceEquals(sx, strat)) { inAccount = true; break; }
                         // Reported, not gated: neither completed run was ever checked this way,
                         // so making it a hard gate would risk blocking a path that works for a
-                        // reason I have not measured.
+                        // reason not measured yet.
                         step("strategy on the account", true,
                              inAccount ? (acc.Name + " holds it, " + acc.Strategies.Count + " total")
                                        : (acc.Name + " does NOT hold it"));
@@ -6629,8 +6627,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                             // Measured 2026-08-20: with a template it came back in 1.9 s
                             // (op=Completed); with an EMPTY strategy and no template it did
                             // not come back at all - NinjaTrader stopped answering the bridge
-                            // AND the user could no longer operate the Playback or Control
-                            // Center windows. The comment that used to sit above this line
+                            // AND the Playback and Control Center windows could no longer be
+                            // operated. The comment that used to sit above this line
                             // asserted the wait stayed clear of the UI thread; the nesting
                             // says otherwise, and the nesting is the code.
                             //

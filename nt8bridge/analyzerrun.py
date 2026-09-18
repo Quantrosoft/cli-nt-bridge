@@ -23,8 +23,8 @@
 driven on the Strategy Analyzer tab exactly as the Run button drives it.
 
 The three commands share ONE request kind, ``analyzerrun``, and ONE option
-syntax with the headless runner (Nt8Cli), so a run can be moved between the two
-hosts by changing nothing but the program name::
+syntax as a headless runner, so a run can be moved between the bridge and a GUI-less
+host with the same syntax by changing nothing but the program name::
 
     python -m nt8bridge walkforward --template=<xml> --opt=Fast:20:30:5 [--anchored]
                                     [--optimizer=default|genetic] [--fitness=<name>[,<name>]]
@@ -55,8 +55,7 @@ hosts by changing nothing but the program name::
   ``LogModes`` folder when it has that property, counting only files with the
   ``LogFilePrefix`` the AddOn sets for the run when the strategy has one;
   ``--out`` copies them as
-  ``<out>`` for one file and ``<out>_<k><ext>`` in creation order for several,
-  which is what Nt8Cli does with the same option).
+  ``<out>`` for one file and ``<out>_<k><ext>`` in creation order for several).
 
 Wire format::
 
@@ -97,7 +96,7 @@ def parse_opt_spec(spec: str) -> list[dict]:
 
     Types are the AddOn's business (it knows the property), so min and max
     travel as text; only the field count and the step width are judged here,
-    with the wording Nt8Cli uses for the same mistakes.
+    with one fixed wording per mistake.
     """
     entries = []
     for part in [p for p in (spec or "").split(",") if p.strip()]:
@@ -140,7 +139,7 @@ def check_fitness(mode: str, fitness: str) -> list[str]:
 def property_overrides(extra: list[str]) -> dict:
     """Turn the unknown ``--Name=value`` tokens into strategy property writes.
 
-    This is the rule the headless runner applies to every option it does not
+    This is the rule a headless runner applies to every option it does not
     know itself; a token of any other shape is a typo, not an override.
     """
     out = {}
