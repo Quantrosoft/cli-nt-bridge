@@ -41,6 +41,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Only the lease holder re-arms the driver lease — another bridge client can no longer
+  keep a dead driver's lease alive.**
+
+  `HandleTrigger` re-armed the lease in the `finally` of EVERY request, not only of a
+  request that carried `leaseSec`. `RearmLease` checked only that a lease was armed, so an
+  answer to any other client pushed the deadline out by the full span. On a machine where
+  something else polls the bridge more often than the lease — reported on PR #7: an external
+  watchdog sending `connections` once a minute against the 120 s lease — the lease could
+  never expire, and the "the driver is gone" teardown never fired.
+
+  `NoteLease` now reports whether the request carried a readable `leaseSec`, and
+  `HandleTrigger` re-arms only then. The driver's own `screenshot` requests, which follow
+  every stage and wait up to 120 s per picture, previously kept the lease alive through
+  exactly that unconditional re-arm; `shot()` therefore now sends the stage's `leaseSec`
+  with them (the stage's own value, so a `lease=0` teardown stays released). Offline
+  compile of both AddOn files against the NinjaTrader 8 assemblies: 0 errors; 329 tests
+  pass, 3 of them new, and those 3 fail against the previous driver.
+
 - **The driver lease no longer expires inside a long stage — the AddOn counts from the
   answer, and a finished run releases the lease.**
 
@@ -60,7 +78,8 @@ All notable changes to this project are documented here. The format follows
   `5 range: Reset - TargetInvocationException`, none of which named the cause.
 
   `HandleTrigger` now re-arms the lease in its `finally`: a request that has just been
-  answered is the proof of life, so the 120 s run from there. The AddOn cannot check the
+  answered is the proof of life, so the 120 s run from there (only for a request that
+  carried `leaseSec` — see the entry above). The AddOn cannot check the
   lease WHILE a stage executes (one poller thread, one gate), so no stage duration can
   ever expire it. The driver's `stage()` takes `lease` (default 120), and the run's last
   two requests — the `restore` stage and the bot-output fetch after it — send `lease=0`,

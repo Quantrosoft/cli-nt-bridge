@@ -138,6 +138,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             string id = null;
             string kind = null;
+            bool leaseHolder = false;   // did THIS request carry `leaseSec`? - see RearmLease
             try
             {
                 string text = File.ReadAllText(file);
@@ -147,7 +148,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 try { File.Delete(file); } catch { }   // consume the trigger
                 id = ExtractJsonString(text, "id");
                 kind = ExtractJsonString(text, "kind");
-                NoteLease(text);      // the driver is alive - push the deadline out
+                leaseHolder = NoteLease(text);   // a leaseSec request: the driver is alive - push the deadline out
 
                 // A caller that has timed out is gone; running its command now acts on
                 // a state it never saw. Measured 2026-08-19: a backlog released after
@@ -235,8 +236,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             finally
             {
                 // The answer has just been written: the driver is alive and will read it.
-                // Its lease runs from HERE, not from the receipt - see RearmLease.
-                RearmLease();
+                // Its lease runs from HERE, not from the receipt - see RearmLease. Only
+                // for the lease holder's own requests: another client's answer is no
+                // proof that the driver lives.
+                if (leaseHolder) RearmLease();
             }
         }
 

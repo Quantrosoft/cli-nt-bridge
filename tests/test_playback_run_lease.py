@@ -5,6 +5,11 @@ trace): the AddOn started the 120 s lease at the RECEIPT of the connect request,
 connect took 282 s, and on its next poll tick the AddOn found the lease expired and
 tore down the connection it had just built. The AddOn now counts from the moment it
 answered; this file pins the driver's half of the contract - what it sends.
+
+The AddOn re-arms the lease only for a request that carries `leaseSec`: re-arming on
+every answered request let any other bridge client (a watchdog polling `connections`
+once a minute) keep a dead driver's lease alive forever. So the driver's screenshot
+requests carry the stage's lease too.
 """
 import json
 import threading
@@ -95,3 +100,31 @@ def test_teardown_requests_release_the_lease(bridge, monkeypatch):
     calls.clear()
     pr.print_bot_output()
     assert calls == [{"title": "botout", "stage": "botout", "lease": 120}]
+
+
+@pytest.mark.parametrize("lease", [120, 0])
+def test_screenshot_requests_carry_the_stage_lease(bridge, tmp_path, monkeypatch, lease):
+    """shot() runs after every stage and may wait up to 120 s per picture. The AddOn
+    re-arms only for requests carrying `leaseSec`, so each screenshot request sends the
+    stage's own value - 120 keeps the guard armed, 0 keeps a teardown released."""
+    trig, res = bridge
+    shots = tmp_path / "shots"
+    shots.mkdir()
+    monkeypatch.setitem(pr._shots, "dir", shots)
+    monkeypatch.setattr(pr.time, "sleep", lambda s: None)   # nobody answers - don't wait
+    pr.shot("x", lease)
+    reqs = [json.loads(f.read_text(encoding="utf-8")) for f in trig.iterdir()]
+    assert sorted(r["title"] for r in reqs) == ["Control Center", "Playback"]
+    assert all(r["kind"] == "screenshot" for r in reqs)
+    assert [r["leaseSec"] for r in reqs] == [lease, lease]
+
+
+def test_stage_passes_its_lease_to_the_screenshots(bridge, monkeypatch):
+    trig, res = bridge
+    got = []
+    monkeypatch.setattr(pr, "shot", lambda title, lease=120: got.append(lease))
+    seen = []
+    t = answer_first_trigger(trig, res, seen)
+    pr.stage("x", {"stage": "restore"}, wait=2, show=False, lease=0)
+    t.join(2)
+    assert got == [0]
