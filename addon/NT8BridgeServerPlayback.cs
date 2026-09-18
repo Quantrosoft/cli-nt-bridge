@@ -1783,18 +1783,41 @@ namespace NinjaTrader.NinjaScript.AddOns
                     opt.SetState(NinjaTrader.NinjaScript.State.SetDefaults);
                     strat.Optimizer = opt;
 
-                    // 5. The fitness measure, by class name, when asked for.
+                    // 5. The fitness measures, by class name: one for optimize and the
+                    //    walk-forwards, at least two for multi-objective - NinjaTrader's
+                    //    own rule, its Run button shows "You must have at least two
+                    //    optimization fitnesses selected." otherwise (measured 09.09.2026)
+                    //    and the request is refused HERE, before RunCommand, so that
+                    //    dialog never blocks the GUI. The list goes to
+                    //    Optimizer.MultiObjectiveOptimizationFitnesses, the first one is
+                    //    the strategy's OptimizationFitness.
                     string fitUsed = strat.OptimizationFitness != null ? strat.OptimizationFitness.GetType().Name : "";
+                    List<NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness> fits =
+                        new List<NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness>();
                     if (!string.IsNullOrWhiteSpace(fitness))
                     {
-                        Type fitType = FindFitnessType(fitness.Trim());
-                        if (fitType == null)
-                        { WriteResult(resultFile, BtErr(id, "analyzerrun: fitness measure '" + fitness + "' not found.")); return; }
-                        NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness fit =
-                            (NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness)Activator.CreateInstance(fitType);
-                        fit.SetState(NinjaTrader.NinjaScript.State.SetDefaults);
-                        strat.OptimizationFitness = fit;
-                        fitUsed = fitType.Name;
+                        foreach (string rawName in fitness.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            Type fitType = FindFitnessType(rawName.Trim());
+                            if (fitType == null)
+                            { WriteResult(resultFile, BtErr(id, "analyzerrun: fitness measure '" + rawName.Trim() + "' not found.")); return; }
+                            NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness fit =
+                                (NinjaTrader.NinjaScript.OptimizationFitnesses.OptimizationFitness)Activator.CreateInstance(fitType);
+                            fit.SetState(NinjaTrader.NinjaScript.State.SetDefaults);
+                            fits.Add(fit);
+                        }
+                        if (fits.Count > 1 && !string.Equals(mode, "MultiObjective", StringComparison.OrdinalIgnoreCase))
+                        { WriteResult(resultFile, BtErr(id, "analyzerrun: --fitness lists " + fits.Count + " measures; only multiobjective takes more than one.")); return; }
+                        strat.OptimizationFitness = fits[0];
+                        var fitNames = new List<string>();
+                        foreach (var f in fits) fitNames.Add(f.GetType().Name);
+                        fitUsed = string.Join(",", fitNames.ToArray());
+                    }
+                    if (string.Equals(mode, "MultiObjective", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (fits.Count < 2)
+                        { WriteResult(resultFile, BtErr(id, "analyzerrun: multiobjective needs at least two fitness measures, --fitness=<A>,<B> (NinjaTrader: \"You must have at least two optimization fitnesses selected\").")); return; }
+                        opt.MultiObjectiveOptimizationFitnesses = fits.ToArray();
                     }
 
                     // 6. Category and the tab's run type.
@@ -2003,6 +2026,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 sb.Append("{\"guid\":").Append(JsonStr(e.Guid))
                   .Append(",\"parentGuid\":").Append(JsonStr(e.ParentGuid))
                   .Append(",\"isSummary\":").Append(e.IsWalkForwardSummaryRow ? "true" : "false")
+                  .Append(",\"isParetoDetails\":").Append(e.IsParetoDetails ? "true" : "false")
+                  .Append(",\"isParetoPlaceholder\":").Append(e.IsParetoPlaceholder ? "true" : "false")
                   .Append(",\"category\":").Append(JsonStr(e.Action.ToString()))
                   .Append(",\"strategy\":").Append(JsonStr(e.StrategyName))
                   .Append(",\"instrument\":").Append(JsonStr(e.Instrument))
@@ -2062,6 +2087,39 @@ namespace NinjaTrader.NinjaScript.AddOns
                             }
                         sb.Append("],\"totalTrades\":").Append(r.AllTrades != null ? r.AllTrades.Count : 0).Append("}");
                     }
+                sb.Append("]");
+                // A multi-objective run's points: parameter values and one performance
+                // value per fitness measure, from the row strategy's optimizer.
+                sb.Append(",\"multiObjectiveValues\":[");
+                try
+                {
+                    var rs = e.ResultsStrategy;
+                    var mov = rs != null && rs.Optimizer != null ? rs.Optimizer.MultiObjectiveValues : null;
+                    bool fm = true;
+                    if (mov != null)
+                        foreach (var mv in mov)
+                        {
+                            if (mv == null) continue;
+                            if (!fm) sb.Append(",");
+                            fm = false;
+                            sb.Append("{\"parameterValues\":[");
+                            object[] pvals = mv.ParameterValues ?? new object[0];
+                            for (int i = 0; i < pvals.Length; i++)
+                            {
+                                if (i > 0) sb.Append(",");
+                                sb.Append(JsonStr(Convert.ToString(pvals[i], InvCi)));
+                            }
+                            sb.Append("],\"performanceValues\":[");
+                            double[] perfs = mv.PerformanceValues ?? new double[0];
+                            for (int i = 0; i < perfs.Length; i++)
+                            {
+                                if (i > 0) sb.Append(",");
+                                sb.Append(Num(perfs[i]));
+                            }
+                            sb.Append("]}");
+                        }
+                }
+                catch (Exception) { }
                 sb.Append("]");
                 sb.Append(",\"children\":").Append(e.Children != null ? e.Children.Count : 0);
                 sb.Append("}");

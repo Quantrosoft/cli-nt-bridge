@@ -27,7 +27,7 @@ syntax with the headless runner (Nt8Cli), so a run can be moved between the two
 hosts by changing nothing but the program name::
 
     python -m nt8bridge walkforward --template=<xml> --opt=Fast:20:30:5 [--anchored]
-                                    [--optimizer=default|genetic] [--fitness=<name>]
+                                    [--optimizer=default|genetic] [--fitness=<name>[,<name>]]
                                     [--OptimizationPeriod=<days>] [--TestPeriod=<days>]
                                     [--out=<csv>] [--timeout=<s>]
 
@@ -118,6 +118,23 @@ def parse_opt_spec(spec: str) -> list[dict]:
     if not entries:
         raise ValueError("needs --opt=Name:min:max:step[,...]")
     return entries
+
+
+def check_fitness(mode: str, fitness: str) -> list[str]:
+    """``--fitness=A[,B...]``: one measure for optimize and the walk-forwards, at
+    least two for multiobjective - NinjaTrader's own rule; its Run button shows
+    "You must have at least two optimization fitnesses selected." and runs nothing
+    (measured 2026-09-09). Refused here, before a request is written, with the
+    wording the AddOn uses for the same mistake."""
+    names = [n.strip() for n in (fitness or "").split(",") if n.strip()]
+    if mode == "multiobjective" and len(names) < 2:
+        raise ValueError("multiobjective needs at least two fitness measures, --fitness=<A>,<B>"
+                         " (NinjaTrader: \"You must have at least two optimization fitnesses"
+                         " selected\")")
+    if mode != "multiobjective" and len(names) > 1:
+        raise ValueError("--fitness lists %d measures; only multiobjective takes more than one."
+                         % len(names))
+    return names
 
 
 def property_overrides(extra: list[str]) -> dict:

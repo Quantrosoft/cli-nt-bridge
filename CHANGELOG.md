@@ -33,6 +33,14 @@ All notable changes to this project are documented here. The format follows
   entry, one WalkForward entry per window and one Optimize entry per combination, the same
   Guid on two entry objects, `OptimizationResults` empty everywhere - hence the rows are made
   unique by Guid and the ranking is read from the Optimize entries' performance value.
+  `multiobjective` takes `--fitness=<A>,<B>[,...]` and refuses fewer than two measures
+  before the request leaves - NinjaTrader's Run button shows `You must have at least two
+  optimization fitnesses selected.` and runs nothing (measured 2026-09-09); the list goes to
+  `Optimizer.MultiObjectiveOptimizationFitnesses`, and the rows carry the Pareto flags and
+  `multiObjectiveValues`. The anchored walk-forward measured against a second host on
+  the same compiled strategy (2026-09-09): 4 windows, out-of-sample 250/250/250/250 with 7/3/14/1 trades,
+  in-sample ranking 4/4, 15 of 15 CSVs byte-identical on both sides.
+
   Re-measured 2026-09-09 after those changes: 17 rows (one summary, four windows, twelve
   combinations, no Guid twice), `parameters` carrying only the optimized name, `windows` and
   `rankedWindows` 4, the template path echoed as sent, and only the run's own

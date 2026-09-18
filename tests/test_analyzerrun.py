@@ -46,6 +46,30 @@ def test_parse_opt_spec_refuses_the_same_mistakes_as_nt8cli(spec, fragment):
     assert fragment in str(e.value)
 
 
+def test_check_fitness_needs_two_measures_for_multiobjective_only():
+    assert analyzerrun.check_fitness("multiobjective", "MaxProfitFactor,MaxNetProfit") == [
+        "MaxProfitFactor", "MaxNetProfit"]
+    assert analyzerrun.check_fitness("optimize", "") == []
+    with pytest.raises(ValueError) as e:
+        analyzerrun.check_fitness("multiobjective", "MaxProfitFactor")
+    assert "at least two" in str(e.value)
+    with pytest.raises(ValueError) as e:
+        analyzerrun.check_fitness("walkforward", "MaxProfitFactor,MaxNetProfit")
+    assert "only multiobjective" in str(e.value)
+
+
+def test_cli_multiobjective_refuses_one_fitness_before_writing_a_request(monkeypatch, capsys):
+    called = []
+    monkeypatch.setattr(cli.ntanalyzerrun, "run_analyzer",
+                        lambda *a, **k: called.append(1) or {"status": "ok"})
+    rc = cli.main(["multiobjective", "--template=WFO.xml", "--opt=Fast:20:30:5",
+                   "--fitness=MaxProfitFactor"])
+    payload = json.loads(capsys.readouterr().out)
+    assert rc == 2
+    assert "at least two" in payload["error"]
+    assert called == []
+
+
 def test_property_overrides_take_name_equals_value_only():
     assert analyzerrun.property_overrides(["--OptimizationPeriod=10", "--TestPeriod=5"]) == {
         "OptimizationPeriod": "10", "TestPeriod": "5"}

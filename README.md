@@ -334,7 +334,14 @@ by changing nothing but the program name:
   run type set and the collection empty, Run shows `The strategy must have at least one
   parameter to optimize.` and runs nothing (measured on 8.1.8.2).
 * `--optimizer=default|genetic` (exactly these two; anything else is refused rather than run
-  as the default), `--fitness=<OptimizationFitness class name>` (default: the template's).
+  as the default), `--fitness=<OptimizationFitness class name>` (default: the template's) - ONE
+  measure for `optimize` and the walk-forwards, a list is refused there; `multiobjective` takes
+  `--fitness=<A>,<B>[,...]` and needs at least two measures - NinjaTrader's own rule, its Run
+  button shows `You must have at least two optimization fitnesses selected.` and runs nothing
+  (measured on 8.1.8.2, 2026-09-09); the CLI and the AddOn refuse such a request before it
+  reaches the button. The list goes to `Optimizer.MultiObjectiveOptimizationFitnesses`; the
+  rows of a multi-objective run carry `isParetoDetails` / `isParetoPlaceholder` and
+  `multiObjectiveValues` (parameter values with one performance value per measure).
 * Any further `--Name=value` is written to the strategy property of that name after the
   template — `--OptimizationPeriod=<days>` and `--TestPeriod=<days>` are the walk-forward
   window lengths. A token of another shape is refused (exit 2), never silently dropped.
